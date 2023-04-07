@@ -1,0 +1,59 @@
+<?php
+
+namespace App\Helpers;
+
+use Vimeo\Laravel\Facades\Vimeo;
+use App\Models\SailboatVideo;
+use Exception;
+use PhpParser\Node\Stmt\TryCatch;
+
+class VimeoHelper
+{
+    public static function upload(SailboatVideo $video)
+    {
+        $response = null;
+        try {
+            if ($video && file_exists('storage/'.$video->video_path)) {
+                $response = Vimeo::connection('main')->upload('storage/'.$video->video_path, [
+                    'name' => $video->title,
+                    'description' => $video->description,
+                    'privacy' => [
+                        'download' => false,
+                        'embed' => 'public',
+                        'view' => 'anybody'
+                    ]
+                ]);
+            }
+        } catch (Exception $e) {
+            return "Error occured while uploading video: {$e->getMessage()}";
+        }
+
+        if ($response) {
+            $data = explode('/', $response);
+            $video->vimeo_id = end($data);
+            $video->save();
+        }
+        return $video;
+    }
+
+    public static function delete(SailboatVideo $video)
+    {
+        $response = null;
+        try{
+            if ($video->vimeo_id) {
+                $response = Vimeo::connection('main')->request('/videos'.$video->vimeo_id, [], 'DELETE');
+            }
+            if ($video->video_path && file_exists('storage/'.$video->video_path)) {
+                unlink('storage/'.$video->video_path);
+            }
+
+        }catch (Exception $e) {
+            return "Error Occured while deleting video: {$e->getMessage()}";
+        }
+        if($response) {
+            $video->vimeo_id = null;
+            $video->save();
+        }
+        return $video;
+    }
+}
